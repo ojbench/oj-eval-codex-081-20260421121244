@@ -92,31 +92,20 @@ int main(){
     }
 
     // Tree edges: i -- parent[i] with weight w[i]
-    vector<vector<pair<int,long long>>> tree(n+1);
-    for(int i=2;i<=n;++i){
-        int u=i, v=parent[i]; long long ww=w[i];
-        tree[u].push_back({v, ww});
-        tree[v].push_back({u, ww});
-    }
+vector<vector<pair<int,long long>>> tree(n+1);
+for(int i=2;i<=n;++i){
+    int u=i, v=parent[i]; long long ww=w[i];
+    tree[u].push_back({v, ww});
+    tree[v].push_back({u, ww});
+}
 
-    // Accumulate sum over all pairs: sum over edges w * sz * (n - sz)
-    long long ans=0;
-    vector<int> sz(n+1,0); vector<int> par(n+1,0);
-    // Root at 1 and get order
-    vector<int> st; st.reserve(n);
-    st.push_back(1); par[1]=0;
-    vector<int> order; order.reserve(n);
-    while(!st.empty()){
-        int u=st.back(); st.pop_back(); order.push_back(u);
-        for(auto [v,ww]: tree[u]) if(v!=par[u]){ par[v]=u; st.push_back(v);}        
-    }
-    for(int i=(int)order.size()-1; i>=0; --i){
-        int u=order[i]; sz[u]=1;
-        for(auto [v,ww]: tree[u]) if(v!=par[u]){
-            sz[u]+=sz[v]; ans += ww * 1LL * sz[v] * (n - sz[v]);
-        }
-    }
-    cout<<ans<<
-;
-    return 0;
+// Use DSU over GH tree edges to sum all-pairs min-cut
+struct DSU { vector<int> p, sz; DSU(int n=0){init(n);} void init(int n){p.resize(n+1); sz.assign(n+1,1); iota(p.begin(), p.end(), 0);} int find(int x){ return p[x]==x?x:p[x]=find(p[x]); } bool unite(int a,int b,long long &ans,long long w){ a=find(a); b=find(b); if(a==b) return false; if(sz[a]<sz[b]) swap(a,b); ans += w * 1LL * sz[a] * sz[b]; p[b]=a; sz[a]+=sz[b]; return true; } } dsu(n);
+vector<tuple<long long,int,int>> tedges; tedges.reserve(n-1);
+for(int i=2;i<=n;++i){ tedges.emplace_back(w[i], i, parent[i]); }
+sort(tedges.begin(), tedges.end(), [](auto &A, auto &B){ return get<0>(A) > get<0>(B); });
+long long ans=0;
+for(auto &e: tedges){ long long ww; int u,v; tie(ww,u,v)=e; dsu.unite(u,v,ans,ww); }
+cout << ans << n;
+return 0;
 }
