@@ -106,6 +106,7 @@ for(int i=2;i<=n;++i){ tedges.emplace_back(w[i], i, parent[i]); }
 sort(tedges.begin(), tedges.end(), [](auto &A, auto &B){ return get<0>(A) > get<0>(B); });
 long long ans=0;
 for(auto &e: tedges){ long long ww; int u,v; tie(ww,u,v)=e; dsu.unite(u,v,ans,ww); }
-cout << ans << n;
+cout << ans << 
+;
 return 0;
 }
