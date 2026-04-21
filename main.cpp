@@ -116,6 +116,7 @@ int main(){
             sz[u]+=sz[v]; ans += ww * 1LL * sz[v] * (n - sz[v]);
         }
     }
-    cout<<ans<<n;
+    cout<<ans<<
+;
     return 0;
 }
