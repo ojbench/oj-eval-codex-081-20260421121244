@@ -1,54 +1,60 @@
 #include <bits/stdc++.h>
 using namespace std;
 
-// Dinic maxflow for unweighted unit capacities
-struct Dinic {
+struct MF {
     struct Edge { int to; int cap; int rev; };
     int n;
     vector<vector<Edge>> g;
-    vector<int> level, it;
-    Dinic(int n=0){ reset(n); }
-    void reset(int n2){ n=n2; g.assign(n+1, {}); level.assign(n+1, 0); it.assign(n+1, 0);}    
-    void add_edge(int u, int v, int c){
-        Edge a{v,c,(int)g[v].size()};
+    MF(int n=0){ reset(n); }
+    void reset(int n2){ n=n2; g.assign(n+1, {}); }
+    void add_edge(int u,int v){
+        Edge a{v,1,(int)g[v].size()};
         Edge b{u,0,(int)g[u].size()};
-        g[u].push_back(a);
-        g[v].push_back(b);
+        g[u].push_back(a); g[v].push_back(b);
+        Edge c{u,1,(int)g[u].size()};
+        Edge d{v,0,(int)g[v].size()};
+        g[v].push_back(c); g[u].push_back(d);
     }
-    bool bfs(int s, int t){
-        fill(level.begin(), level.end(), -1);
-        queue<int> q; level[s]=0; q.push(s);
+    int augment_once(int s,int t, vector<pair<int,int>>& par){
+        par.assign(n+1, {-1,-1});
+        queue<int> q; q.push(s); par[s] = {s,-1};
         while(!q.empty()){
             int u=q.front(); q.pop();
-            for(const auto &e: g[u]) if(e.cap>0 && level[e.to]<0){ level[e.to]=level[u]+1; q.push(e.to);}        
-        }
-        return level[t]>=0;
-    }
-    int dfs(int u, int t, int f){
-        if(u==t) return f;
-        for(int &i=it[u]; i<(int)g[u].size(); ++i){
-            Edge &e = g[u][i];
-            if(e.cap>0 && level[e.to]==level[u]+1){
-                int ret = dfs(e.to, t, min(f, e.cap));
-                if(ret>0){ e.cap-=ret; g[e.to][e.rev].cap += ret; return ret; }
+            for(int i=0;i<(int)g[u].size();++i){
+                auto &e=g[u][i];
+                if(e.cap>0 && par[e.to].first==-1){
+                    par[e.to] = {u,i};
+                    if(e.to==t){
+                        // augment 1 unit
+                        int v=t;
+                        while(v!=s){
+                            auto [pu,idx]=par[v];
+                            Edge &ed = g[pu][idx];
+                            Edge &rv = g[v][ed.rev];
+                            ed.cap -= 1; rv.cap += 1; v = pu;
+                        }
+                        return 1;
+                    }
+                    q.push(e.to);
+                }
             }
         }
         return 0;
     }
-    int maxflow(int s, int t){
-        int flow=0, aug;
-        while(bfs(s,t)){
-            fill(it.begin(), it.end(), 0);
-            while((aug=dfs(s,t,INT_MAX))>0) flow+=aug;
+    int maxflow(int s,int t){
+        int flow=0; vector<pair<int,int>> par;
+        for(int it=0; it<3; ++it){
+            int aug = augment_once(s,t,par);
+            if(!aug) break; flow += aug;
         }
         return flow;
     }
-    vector<char> mincut_reachable(int s){
+    vector<char> reachable_from(int s){
         vector<char> vis(n+1,false);
         queue<int> q; q.push(s); vis[s]=true;
         while(!q.empty()){
             int u=q.front(); q.pop();
-            for(const auto &e: g[u]) if(e.cap>0 && !vis[e.to]){ vis[e.to]=true; q.push(e.to);}            
+            for(auto &e: g[u]) if(e.cap>0 && !vis[e.to]){ vis[e.to]=true; q.push(e.to);}        
         }
         return vis;
     }
@@ -60,53 +66,28 @@ int main(){
     vector<pair<int,int>> edges; edges.reserve(m);
     for(int i=0;i<m;++i){ int a,b; cin>>a>>b; if(a==b) continue; edges.emplace_back(a,b);}    
 
-    // Build Gomory–Hu tree for undirected unit-capacity graph
-    vector<int> parent(n+1, 0);
-    vector<long long> w(n+1, 0);
+    // Gomory–Hu tree
+    vector<int> parent(n+1,0); vector<int> w(n+1,0);
     for(int i=2;i<=n;++i) parent[i]=1;
-
-    Dinic din(n);
-    auto build_graph = [&](int N){
-        din.reset(N);
-        for(auto &e: edges){
-            int u=e.first, v=e.second;
-            din.add_edge(u,v,1);
-            din.add_edge(v,u,1);
-        }
-    };
+    MF mf(n);
+    auto build = [&](){ mf.reset(n); for(auto &e: edges) mf.add_edge(e.first,e.second); };
 
     for(int s=2; s<=n; ++s){
         int t = parent[s];
-        build_graph(n);
-        int flow = din.maxflow(s, t);
-        vector<char> inS = din.mincut_reachable(s);
-        for(int v=1; v<=n; ++v){
-            if(v!=s && parent[v]==t && inS[v]) parent[v]=s;
-        }
-        if(parent[t]!=0 && inS[parent[t]]){
-            parent[s]=parent[t];
-            parent[t]=s;
-            long long tmp=w[t]; w[t]=flow; flow=tmp; // swap w[t] and flow
-        }
+        build();
+        int flow = mf.maxflow(s,t);
+        auto inS = mf.reachable_from(s);
+        for(int v=1; v<=n; ++v){ if(v!=s && parent[v]==t && inS[v]) parent[v]=s; }
+        if(parent[t]!=0 && inS[parent[t]]){ parent[s]=parent[t]; parent[t]=s; swap(flow, w[t]); }
         w[s]=flow;
     }
 
-    // Tree edges: i -- parent[i] with weight w[i]
-vector<vector<pair<int,long long>>> tree(n+1);
-for(int i=2;i<=n;++i){
-    int u=i, v=parent[i]; long long ww=w[i];
-    tree[u].push_back({v, ww});
-    tree[v].push_back({u, ww});
-}
-
-// Use DSU over GH tree edges to sum all-pairs min-cut
-struct DSU { vector<int> p, sz; DSU(int n=0){init(n);} void init(int n){p.resize(n+1); sz.assign(n+1,1); iota(p.begin(), p.end(), 0);} int find(int x){ return p[x]==x?x:p[x]=find(p[x]); } bool unite(int a,int b,long long &ans,long long w){ a=find(a); b=find(b); if(a==b) return false; if(sz[a]<sz[b]) swap(a,b); ans += w * 1LL * sz[a] * sz[b]; p[b]=a; sz[a]+=sz[b]; return true; } } dsu(n);
-vector<tuple<long long,int,int>> tedges; tedges.reserve(n-1);
-for(int i=2;i<=n;++i){ tedges.emplace_back(w[i], i, parent[i]); }
-sort(tedges.begin(), tedges.end(), [](auto &A, auto &B){ return get<0>(A) > get<0>(B); });
-long long ans=0;
-for(auto &e: tedges){ long long ww; int u,v; tie(ww,u,v)=e; dsu.unite(u,v,ans,ww); }
-cout << ans << 
-;
-return 0;
+    // Sum over pairs via DSU on GH tree (path-min sums)
+    struct DSU{ vector<int> p, sz; DSU(int n=0){init(n);} void init(int n){p.resize(n+1); sz.assign(n+1,1); iota(p.begin(), p.end(), 0);} int find(int x){ return p[x]==x?x:p[x]=find(p[x]); } bool unite(int a,int b,long long &ans,long long ww){ a=find(a); b=find(b); if(a==b) return false; if(sz[a]<sz[b]) swap(a,b); ans += ww * 1LL * sz[a] * sz[b]; p[b]=a; sz[a]+=sz[b]; return true; } } dsu(n);
+    vector<tuple<int,int,int>> tedges; tedges.reserve(n-1);
+    for(int i=2;i<=n;++i) tedges.emplace_back(w[i], i, parent[i]);
+    sort(tedges.begin(), tedges.end(), [](auto &A, auto &B){ return get<0>(A) > get<0>(B); });
+    long long ans=0; for(auto &e: tedges){ int ww,u,v; tie(ww,u,v)=e; dsu.unite(u,v,ans,ww); }
+    cout << ans << n;
+    return 0;
 }
